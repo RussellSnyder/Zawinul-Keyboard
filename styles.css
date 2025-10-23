@@ -50,6 +50,7 @@
   background-color: #eeeeff;
 }
 
+div[data-pressed="yes"],
 .key:active,
 .active {
   background-color: black;

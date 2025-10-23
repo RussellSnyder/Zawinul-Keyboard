@@ -1,4 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
+  navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+
   const audioContext = new AudioContext();
   const oscList = [];
   let mainGainNode = null;
@@ -22,22 +24,24 @@ document.addEventListener("DOMContentLoaded", function () {
         noteName: "C",
         freq: 32.70319566257483,
         octave: 1,
+        midi: 24,
       },
       {
         noteName: "C#",
         freq: 34.64782887210901,
         octave: 1,
+        midi: 25,
       },
-      { noteName: "D", freq: 36.70809598967595, octave: 1 },
-      { noteName: "D#", freq: 38.89087296526011, octave: 1 },
-      { noteName: "E", freq: 41.20344461410874, octave: 1 },
-      { noteName: "F", freq: 43.65352892912549, octave: 1 },
-      { noteName: "F#", freq: 46.2493028389543, octave: 1 },
-      { noteName: "G", freq: 48.99942949771866, octave: 1 },
-      { noteName: "G#", freq: 51.91308719749314, octave: 1 },
-      { noteName: "A", freq: 55, octave: 1 },
-      { noteName: "A#", freq: 58.27047018976124, octave: 1 },
-      { noteName: "B", freq: 61.73541265701551, octave: 1 },
+      { noteName: "D", freq: 36.70809598967595, octave: 1, midi: 26 },
+      { noteName: "D#", freq: 38.89087296526011, octave: 1, midi: 27 },
+      { noteName: "E", freq: 41.20344461410874, octave: 1, midi: 28 },
+      { noteName: "F", freq: 43.65352892912549, octave: 1, midi: 29 },
+      { noteName: "F#", freq: 46.2493028389543, octave: 1, midi: 30 },
+      { noteName: "G", freq: 48.99942949771866, octave: 1, midi: 31 },
+      { noteName: "G#", freq: 51.91308719749314, octave: 1, midi: 32 },
+      { noteName: "A", freq: 55, octave: 1, midi: 33 },
+      { noteName: "A#", freq: 58.27047018976124, octave: 1, midi: 34 },
+      { noteName: "B", freq: 61.73541265701551, octave: 1, midi: 35 },
     ];
 
     const completeOctave = [...freqTable].filter((e) => e.octave === 1);
@@ -48,6 +52,7 @@ document.addEventListener("DOMContentLoaded", function () {
           octave,
           freq: freqTable[freqTable.length + i - 12].freq * 2,
           noteName: event.noteName,
+          midi: freqTable[freqTable.length + i - 12].midi + 12,
         };
       });
 
@@ -82,8 +87,8 @@ document.addEventListener("DOMContentLoaded", function () {
         noteSequence = noteFreq.reverse();
     }
 
-    noteSequence.forEach(({ noteName, octave, freq }, idx) => {
-      $keyboard.appendChild(createKey(noteName, octave, freq));
+    noteSequence.forEach(({ noteName, octave, freq, midi }, idx) => {
+      $keyboard.appendChild(createKey(noteName, octave, freq, midi));
     });
 
     document
@@ -100,11 +105,12 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   setup();
-  function createKey(note, octave, freq) {
+  function createKey(note, octave, freq, midi) {
     const keyElement = document.createElement("div");
     const labelElement = document.createElement("div");
 
     keyElement.className = "key";
+    keyElement.dataset["midi"] = midi;
     keyElement.dataset["octave"] = octave;
     keyElement.dataset["note"] = note;
     keyElement.dataset["frequency"] = freq;
@@ -115,16 +121,59 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     keyElement.appendChild(labelElement);
 
-    keyElement.addEventListener("mousedown", notePressed);
+    keyElement.addEventListener("mousedown", handleNotePress);
     keyElement.addEventListener("mouseup", noteReleased);
-    keyElement.addEventListener("mouseover", notePressed);
-    keyElement.addEventListener("mouseleave", noteReleased);
 
     return keyElement;
   }
-  function playTone(freq) {
+
+  let midi = null; // global MIDIAccess object
+  function onMIDISuccess(midiAccess) {
+    console.log("MIDI ready!");
+    midi = midiAccess;
+    startLoggingMIDIInput(midi);
+  }
+
+  function onMIDIFailure(msg) {
+    console.error(`Failed to get MIDI access - ${msg}`);
+  }
+
+  function startLoggingMIDIInput(midiAccess) {
+    midiAccess.inputs.forEach((entry) => {
+      entry.onmidimessage = onMIDIMessage;
+    });
+  }
+
+  function onMIDIMessage(event) {
+    let str = `MIDI message received at timestamp ${event.timeStamp}[${event.data.length} bytes]: `;
+    for (const character of event.data) {
+      str += `0x${character.toString(16)} `;
+    }
+    const midi = deriveMIDIMessage(event);
+
+    // find the key that corresponds to this midi number
+    const $key = document.querySelector(`[data-midi='${midi.note}']`);
+
+    if (midi.velocity == 0) {
+      $key.dispatchEvent(new Event("mouseup"));
+    } else {
+      $key.dispatchEvent(new Event("mousedown"));
+    }
+  }
+
+  function deriveMIDIMessage(message) {
+    var command = message.data[0];
+    var note = message.data[1];
+    var velocity = message.data.length > 2 ? message.data[2] : 0; // a velocity value might not be included with a noteOff command
+
+    return { command, note, velocity };
+  }
+
+  function playTone(freq, velocity = 127) {
     const osc = audioContext.createOscillator();
     osc.connect(mainGainNode);
+    // TODO control volume
+    // osc.connect(mainGainNode * (Math.max(velocity, 1) / 127));
 
     const type = $wavePicker.options[$wavePicker.selectedIndex].value;
 
@@ -139,26 +188,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
     return osc;
   }
-  function notePressed(event) {
-    if (event.buttons & 1) {
-      const dataset = event.target.dataset;
 
-      if (!dataset["pressed"] && dataset["octave"]) {
-        const octave = Number(dataset["octave"]);
-        oscList[octave][dataset["note"]] = playTone(dataset["frequency"]);
-        dataset["pressed"] = "yes";
-      }
+  function handleNotePress(event) {
+    const dataset = event.target.dataset;
+
+    if (!dataset["pressed"]) {
+      oscList[dataset["midi"]] = playTone(dataset["frequency"]);
+      dataset["pressed"] = "yes";
     }
   }
   function noteReleased(event) {
     const dataset = event.target.dataset;
 
     if (dataset && dataset["pressed"]) {
-      const octave = Number(dataset["octave"]);
+      const midi = Number(dataset["midi"]);
 
-      if (oscList[octave] && oscList[octave][dataset["note"]]) {
-        oscList[octave][dataset["note"]].stop();
-        delete oscList[octave][dataset["note"]];
+      if (oscList[midi]) {
+        oscList[midi].stop();
+        delete oscList[midi][dataset["note"]];
         delete dataset["pressed"];
       }
     }
@@ -192,7 +239,7 @@ document.addEventListener("DOMContentLoaded", function () {
         elKey.tabIndex = -1;
         elKey.focus();
         elKey.classList.add("active");
-        notePressed({ buttons: 1, target: elKey });
+        handleNotePress({ buttons: 1, target: elKey });
       } else {
         elKey.classList.remove("active");
         noteReleased({ buttons: 1, target: elKey });
@@ -220,3 +267,5 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 });
+
+const midiToFreq = (midiKey) => Math.pow(2, (midiKey - 49) / 12.0) * 440;
