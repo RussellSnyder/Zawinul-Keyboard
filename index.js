@@ -3,11 +3,13 @@ document.addEventListener("DOMContentLoaded", function () {
   const oscList = [];
   let mainGainNode = null;
   let showNoteNames = true;
+  let keyArrangement = "low-to-high";
   const $keyboard = document.querySelector(".keyboard");
-  const wavePicker = document.querySelector("select[name='waveform']");
-  const keyArrangement = document.querySelector(
+  const $wavePicker = document.querySelector("select[name='waveform']");
+  const $keyArrangement = document.querySelector(
     "select[name='keyArrangement']"
   );
+  $keyArrangement.value = keyArrangement;
   const $showNoteNames = document.querySelector("input[name='shownotenames']");
   $showNoteNames.checked = showNoteNames;
   const volumeControl = document.querySelector("input[name='volume']");
@@ -15,41 +17,52 @@ document.addEventListener("DOMContentLoaded", function () {
   let sineTerms = null;
   let cosineTerms = null;
   function createNoteTable() {
-    const noteFreq = [
-      { A: 27.5, "A#": 29.13523509488062, B: 30.867706328507754 },
+    let freqTable = [
       {
-        C: 32.70319566257483,
-        "C#": 34.64782887210901,
-        D: 36.70809598967595,
-        "D#": 38.89087296526011,
-        E: 41.20344461410874,
-        F: 43.65352892912549,
-        "F#": 46.2493028389543,
-        G: 48.99942949771866,
-        "G#": 51.91308719749314,
-        A: 55,
-        "A#": 58.27047018976124,
-        B: 61.73541265701551,
+        noteName: "C",
+        freq: 32.70319566257483,
+        octave: 1,
       },
+      {
+        noteName: "C#",
+        freq: 34.64782887210901,
+        octave: 1,
+      },
+      { noteName: "D", freq: 36.70809598967595, octave: 1 },
+      { noteName: "D#", freq: 38.89087296526011, octave: 1 },
+      { noteName: "E", freq: 41.20344461410874, octave: 1 },
+      { noteName: "F", freq: 43.65352892912549, octave: 1 },
+      { noteName: "F#", freq: 46.2493028389543, octave: 1 },
+      { noteName: "G", freq: 48.99942949771866, octave: 1 },
+      { noteName: "G#", freq: 51.91308719749314, octave: 1 },
+      { noteName: "A", freq: 55, octave: 1 },
+      { noteName: "A#", freq: 58.27047018976124, octave: 1 },
+      { noteName: "B", freq: 61.73541265701551, octave: 1 },
     ];
+
+    const completeOctave = [...freqTable].filter((e) => e.octave === 1);
+
     for (let octave = 2; octave <= 7; octave++) {
-      noteFreq.push(
-        Object.fromEntries(
-          Object.entries(noteFreq[octave - 1]).map(([key, freq]) => [
-            key,
-            freq * 2,
-          ])
-        )
-      );
+      const nextOctave = completeOctave.map((event, i) => {
+        return {
+          octave,
+          freq: freqTable[freqTable.length + i - 12].freq * 2,
+          noteName: event.noteName,
+        };
+      });
+
+      freqTable = [...freqTable, ...nextOctave];
     }
-    noteFreq.push({ C: 4186.009044809578 });
-    return noteFreq;
+
+    return freqTable;
   }
+
   function setup() {
     const noteFreq = createNoteTable();
 
     volumeControl.addEventListener("change", changeVolume);
     $showNoteNames.addEventListener("change", toggleShowNoteNames);
+    $keyArrangement.addEventListener("change", setKeyArrangement);
 
     mainGainNode = audioContext.createGain();
     mainGainNode.connect(audioContext.destination);
@@ -60,18 +73,17 @@ document.addEventListener("DOMContentLoaded", function () {
     // into a <div> of class "octave".
     $keyboard.replaceChildren();
 
-    noteFreq.forEach((keys, idx) => {
-      const keyList = Object.entries(keys);
-      const octaveElem = document.createElement("div");
-      octaveElem.className = "octave";
+    let noteSequence = noteFreq;
 
-      keyList.forEach((key) => {
-        if (key[0].length === 1) {
-          octaveElem.appendChild(createKey(key[0], idx, key[1]));
-        }
-      });
+    switch (keyArrangement) {
+      case "random":
+        shuffle(noteSequence);
+      case "high-to-low":
+        noteSequence = noteFreq.reverse();
+    }
 
-      $keyboard.appendChild(octaveElem);
+    noteSequence.forEach(({ noteName, octave, freq }, idx) => {
+      $keyboard.appendChild(createKey(noteName, octave, freq));
     });
 
     document
@@ -114,7 +126,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const osc = audioContext.createOscillator();
     osc.connect(mainGainNode);
 
-    const type = wavePicker.options[wavePicker.selectedIndex].value;
+    const type = $wavePicker.options[$wavePicker.selectedIndex].value;
 
     if (type === "custom") {
       osc.setPeriodicWave(customWaveform);
@@ -158,6 +170,11 @@ document.addEventListener("DOMContentLoaded", function () {
     showNoteNames = !showNoteNames;
     setup();
   }
+  function setKeyArrangement(event) {
+    console.log(event);
+    keyArrangement = event.target.value;
+    setup();
+  }
   const synthKeys = document.querySelectorAll(".key");
   // prettier-ignore
   const keyCodes = [
@@ -186,5 +203,20 @@ document.addEventListener("DOMContentLoaded", function () {
   addEventListener("keydown", keyNote);
   addEventListener("keyup", keyNote);
 
-  // Your code goes here
+  function shuffle(array) {
+    let currentIndex = array.length;
+
+    // While there remain elements to shuffle...
+    while (currentIndex != 0) {
+      // Pick a remaining element...
+      let randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex--;
+
+      // And swap it with the current element.
+      [array[currentIndex], array[randomIndex]] = [
+        array[randomIndex],
+        array[currentIndex],
+      ];
+    }
+  }
 });
