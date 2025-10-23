@@ -15,6 +15,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const $showNoteNames = document.querySelector("input[name='shownotenames']");
   $showNoteNames.checked = showNoteNames;
   const volumeControl = document.querySelector("input[name='volume']");
+
+  const $panic = document.querySelector("button#panic");
+
   let customWaveform = null;
   let sineTerms = null;
   let cosineTerms = null;
@@ -68,6 +71,7 @@ document.addEventListener("DOMContentLoaded", function () {
     volumeControl.addEventListener("change", changeVolume);
     $showNoteNames.addEventListener("change", toggleShowNoteNames);
     $keyArrangement.addEventListener("change", setKeyArrangement);
+    $panic.addEventListener("click", releaseAllNotes);
 
     mainGainNode = audioContext.createGain();
     mainGainNode.connect(audioContext.destination);
@@ -151,8 +155,13 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     const midi = deriveMIDIMessage(event);
 
-    // find the key that corresponds to this midi number
-    const $key = document.querySelector(`[data-midi='${midi.note}']`);
+    // We need to get the index so we can play the note at that index
+    //we start with midi 24
+    const index = Math.min(midi.note - 23);
+
+    // find the key that corresponds to this index
+    const $key = document.querySelector(`.key:nth-of-type(${index})`);
+    // const $key = document.querySelector(`[data-midi='${midi.note}']`);
 
     if (midi.velocity == 0) {
       $key.dispatchEvent(new Event("mouseup"));
@@ -195,6 +204,14 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!dataset["pressed"]) {
       oscList[dataset["midi"]] = playTone(dataset["frequency"]);
       dataset["pressed"] = "yes";
+    }
+  }
+
+  function releaseAllNotes() {
+    for (let i = 0; i++; i <= 127) {
+      if (oscList[i]) {
+        oscList[i].stop();
+      }
     }
   }
   function noteReleased(event) {
