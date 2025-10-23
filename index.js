@@ -2,8 +2,14 @@ document.addEventListener("DOMContentLoaded", function () {
   const audioContext = new AudioContext();
   const oscList = [];
   let mainGainNode = null;
-  const keyboard = document.querySelector(".keyboard");
+  let showNoteNames = true;
+  const $keyboard = document.querySelector(".keyboard");
   const wavePicker = document.querySelector("select[name='waveform']");
+  const keyArrangement = document.querySelector(
+    "select[name='keyArrangement']"
+  );
+  const $showNoteNames = document.querySelector("input[name='shownotenames']");
+  $showNoteNames.checked = showNoteNames;
   const volumeControl = document.querySelector("input[name='volume']");
   let customWaveform = null;
   let sineTerms = null;
@@ -43,6 +49,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const noteFreq = createNoteTable();
 
     volumeControl.addEventListener("change", changeVolume);
+    $showNoteNames.addEventListener("change", toggleShowNoteNames);
 
     mainGainNode = audioContext.createGain();
     mainGainNode.connect(audioContext.destination);
@@ -51,6 +58,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Create the keys; skip any that are sharp or flat; for
     // our purposes we don't need them. Each octave is inserted
     // into a <div> of class "octave".
+    $keyboard.replaceChildren();
 
     noteFreq.forEach((keys, idx) => {
       const keyList = Object.entries(keys);
@@ -63,7 +71,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       });
 
-      keyboard.appendChild(octaveElem);
+      $keyboard.appendChild(octaveElem);
     });
 
     document
@@ -88,9 +96,11 @@ document.addEventListener("DOMContentLoaded", function () {
     keyElement.dataset["octave"] = octave;
     keyElement.dataset["note"] = note;
     keyElement.dataset["frequency"] = freq;
-    labelElement.appendChild(document.createTextNode(note));
-    labelElement.appendChild(document.createElement("sub")).textContent =
-      octave;
+    if (showNoteNames) {
+      labelElement.appendChild(document.createTextNode(note));
+      labelElement.appendChild(document.createElement("sub")).textContent =
+        octave;
+    }
     keyElement.appendChild(labelElement);
 
     keyElement.addEventListener("mousedown", notePressed);
@@ -143,6 +153,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   function changeVolume(event) {
     mainGainNode.gain.value = volumeControl.value;
+  }
+  function toggleShowNoteNames() {
+    showNoteNames = !showNoteNames;
+    setup();
   }
   const synthKeys = document.querySelectorAll(".key");
   // prettier-ignore

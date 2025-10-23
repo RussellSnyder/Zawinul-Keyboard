@@ -29,15 +29,22 @@
           <option value="1.0" label="100%"></option>
         </datalist>
       </div>
-      <div class="arrangement-container">
-        <span>Arrangement: </span>
-        <select name="arrangement">
-          <option value="sine" selected>Sine</option>
-          <option value="square">Square</option>
-          <option value="sawtooth">Sawtooth</option>
-          <option value="triangle">Triangle</option>
-          <option value="custom">Custom</option>
+      <div class="keyarrangement-container">
+        <span>key arrangement: </span>
+        <select name="keyArrangement">
+          <option value="traditional" selected>Traditional</option>
+          <option value="random">Random</option>
         </select>
+      </div>
+      <div class="shownotenames-container">
+        <label for="shownotenames">show note names: </label>
+        <input
+          type="checkbox"
+          id="shownotenames"
+          name="shownotenames"
+          value="true"
+          checked
+        />
       </div>
 
       <div class="waveform-container">
